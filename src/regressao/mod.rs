@@ -1,9 +1,7 @@
 use std::error::Error;
-use std::io::BufReader;
 use std::fs::File;
 use std::fs;
-use serde::Deserialize;
-use csv::Reader;
+use serde::{Serialize, Deserialize};
 
 pub fn calcular_media(valores: &[f64]) -> f64 {
     
@@ -97,7 +95,7 @@ pub fn calcular_r2(x: &[f64], y_real: &[f64], a: f64, b: f64) -> f64 {
         .zip(y_real.iter())
         .map(|(&xi, &yi_real)| {
             let y_previsto = a * xi + b;
-            (yi_real - y_previsto).powi(20)
+            (yi_real - y_previsto).powi(2)
         })
         .sum();
 
@@ -170,27 +168,33 @@ mod tests {
 }
 
 #[derive(Debug)]
-pub struct Dados {
+pub struct DadosRegressao {
     pub x: Vec<f64>,
     pub y: Vec<f64>,
 }
 
-pub fn ler_csv(caminho: &str) -> Result<Dados, Box<dyn Error>> {
-    let mut leitor = Reader::from_path(caminho)?;
+pub fn ler_csv(caminho: &str) -> Result<DadosRegressao, Box<dyn std::error::Error>> {
+    let mut rdr = csv::Reader::from_path(caminho)
+        .map_err(|_| format!("Erro ao abrir o arquivo CSV: {}", caminho))?;
+
     let mut x = Vec::new();
     let mut y = Vec::new();
 
-    for resultado in leitor.records() {
-        let registro = resultado?;
-        let x_val: f64 = registro[0].parse()?;
-        let y_val: f64 = registro[1].parse()?;
-
-        x.push(x_val);
-        y.push(y_val);
+    for result in rdr.records() {
+        let record = result.map_err(|_| "Erro ao ler uma linha do CSV")?;
+        if let (Some(valor_x), Some(valor_y)) = (record.get(0), record.get(1)) {
+            let x_val: f64 = valor_x.parse().map_err(|_| "Erro ao converter X para número")?;
+            let y_val: f64 = valor_y.parse().map_err(|_| "Erro ao converter Y para número")?;
+            x.push(x_val);
+            y.push(y_val);
+        } else {
+            return Err("Formato do CSV inválido!".into());
+        }
     }
 
-    Ok(Dados { x, y })
+    Ok(DadosRegressao { x, y })
 }
+
 
 #[derive(Debug, Deserialize)]
 struct Registro {
@@ -198,7 +202,17 @@ struct Registro {
     y: f64,
 }
 
-pub fn ler_json(caminho: &str) -> Result<Dados, Box<dyn Error>> {
+#[derive(Serialize, Deserialize)]
+pub struct ResultadoRegressao {
+    pub a: f64,
+    pub b: f64,
+    pub mse: f64,
+    pub r2: f64,
+    pub previsoes: Vec<(f64, f64)>,
+}
+
+
+pub fn ler_json(caminho: &str) -> Result<DadosRegressao, Box<dyn Error>> {
     let conteudo = fs::read_to_string(caminho)?; // Lê o arquivo JSON como String
     let registros: Vec<Registro> = serde_json::from_str(&conteudo)?; // Converte a String para uma estrutura Rust
 
@@ -210,5 +224,32 @@ pub fn ler_json(caminho: &str) -> Result<Dados, Box<dyn Error>> {
         y.push(registro.y);
     }
 
-    Ok(Dados { x, y })
+    Ok(DadosRegressao { x, y })
+}
+
+// Função para salvar em CSV
+pub fn salvar_csv(resultado: &ResultadoRegressao, caminho: &str) -> std::io::Result<()> {
+    let mut wtr = csv::Writer::from_path(caminho)?;
+    wtr.write_record(&["Coeficiente Angular (a)", "Intercepto (b)", "MSE", "R²"])?;
+    wtr.write_record(&[
+        resultado.a.to_string(),
+        resultado.b.to_string(),
+        resultado.mse.to_string(),
+        resultado.r2.to_string(),
+    ])?;
+    wtr.write_record(&["X", "Y Previsto"])?;
+
+    for (x, y) in &resultado.previsoes {
+        wtr.write_record(&[x.to_string(), y.to_string()])?;
+    }
+
+    wtr.flush()?;
+    Ok(())
+}
+
+// Função para salvar em JSON
+pub fn salvar_json(resultado: &ResultadoRegressao, caminho: &str) -> std::io::Result<()> {
+    let file = File::create(caminho)?;
+    serde_json::to_writer_pretty(file, resultado)?;
+    Ok(())
 }
