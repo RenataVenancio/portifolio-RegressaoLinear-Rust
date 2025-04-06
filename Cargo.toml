@@ -1,5 +1,5 @@
 [package]
-name = "portifolio-RegressaoLinear-Rust"
+name = "regressao_linear"
 version = "0.1.0"
 edition = "2024"
 

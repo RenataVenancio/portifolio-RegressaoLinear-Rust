@@ -1,6 +1,11 @@
 use std::io;
 mod regressao;
 
+// // mod modulo;
+// mod processamento;
+
+use regressao::processamento::{ler_csv, ler_json, salvar_csv, salvar_json, ResultadoRegressao};
+
 fn main() {
 
     // println!("Digite o nome do arquivo CSV ou JSON para carregar os dados:");
@@ -36,9 +41,9 @@ fn main() {
     };
 
     let dados = if escolha == "1" {
-        regressao::ler_csv(caminho_arquivo)
+        ler_csv(caminho_arquivo)
     } else {
-        regressao::ler_json(caminho_arquivo)
+        ler_json(caminho_arquivo)
     };
 
     match dados {
@@ -76,7 +81,7 @@ fn main() {
             }
 
 
-            let resultado = regressao::ResultadoRegressao { a, b, mse, r2, previsoes };
+            let resultado = ResultadoRegressao { a, b, mse, r2, previsoes };
 
             // Perguntar formato de saída e salvar na pasta `data/`
             println!("Escolha o formato para salvar os resultados:");
@@ -97,10 +102,10 @@ fn main() {
             };
 
             if formato_saida == "1" {
-                regressao::salvar_csv(&resultado, caminho_saida).expect("Erro ao salvar CSV");
+                salvar_csv(resultado.a, resultado.b, resultado.mse, resultado.r2, &resultado.previsoes).expect("Erro ao salvar CSV");
                 println!("Resultados salvos em '{}'", caminho_saida);
             } else {
-                regressao::salvar_json(&resultado, caminho_saida).expect("Erro ao salvar JSON");
+                salvar_json(&resultado, caminho_saida).expect("Erro ao salvar JSON");
                 println!("Resultados salvos em '{}'", caminho_saida);
             }
         }
